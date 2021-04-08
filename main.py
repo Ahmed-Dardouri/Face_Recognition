@@ -8,8 +8,14 @@ import time
 import threading
 from multiprocessing import Process, Pipe, Event
 
+'''
+def notification(img):
+    print('test1')
+    #cv2.imshow("New person",img)
+    #cv2.waitKey(5000)
+'''
+
 def CaptureProcess(pipe, read_ev):
-    
     while True:
         video = None
         def read_th():
@@ -21,7 +27,6 @@ def CaptureProcess(pipe, read_ev):
                 if(success): 
                     pipe.send(imageFrame)
         r_th = threading.Thread(target=read_th)
-        
         r_th.daemon = True
         r_th.start()
         while True:
@@ -40,18 +45,11 @@ class InferThread(threading.Thread):
         super(InferThread, self).__init__()
         self.daemon = True
     def run(self):
-        global cap_read_ev, cap_pipe
+        global cap_read_ev, cap_pipe, encodeListunknown
         while True:
             cap_read_ev.set()
             img = cap_pipe.recv()
             cap_read_ev.clear()
-            newunKnownList = os.listdir(path1)
-            if newunKnownList != unKnownList:
-                newFaces = list(set(newunKnownList) - set(unKnownList))
-                for i in newFaces:
-                    face = cv2.imread(f'{path1}/{i}')
-                    if len(face_recognition.face_encodings(face)) > 0:
-                        encodeListunknown.append(face_recognition.face_encodings(face)[0])
             
             imgS = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
             facesCurFrame = face_recognition.face_locations(imgS)
@@ -67,14 +65,30 @@ class InferThread(threading.Thread):
                     cv2.rectangle(img,(x1,y1),(x2,y2),(0,255,0),2)
                     
                 elif (faceDis[matchIndex]>0.65):
+                    
                     cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
                     unknownMatches = face_recognition.compare_faces(encodeListunknown,encodeFace)
                     unknownFaceDis = face_recognition.face_distance(encodeListunknown,encodeFace)
+                    print(len(unknownFaceDis))
                     if len(unknownFaceDis) > 0:
                         unknownMatchIndex = np.argmin(unknownFaceDis)
                         if not (unknownMatches[unknownMatchIndex]):
+                            
+                            print('test')
+                            '''
+                            print('test0')
+                            notif = Process(target = notification, args = img[y1:y2,x1:x2])
+                            print('test3')
+                            notif.daemon = False
+                            print('test4')
+                            notif.start()
+                            print('test2')
+                            '''
+                            encodeListunknown.append(encodeFace)
                             cv2.imwrite(path1+'/unknown'+str(datetime.datetime.now())+'.jpg', img[y1:y2,x1:x2])
                     else:
+                            print('testttt2')
+                            encodeListunknown.append(encodeFace)
                             cv2.imwrite(path1+'/unknown'+str(datetime.datetime.now())+'.jpg', img[y1:y2,x1:x2])
 
                 else:
@@ -94,6 +108,7 @@ unknownFacesImages=[]
 unknownFaces=[]
 unKnownList = os.listdir(path1)
 
+
 for k in KnownList:
     curImg = cv2.imread(f'{path}/{k}')
     knownFacesImages.append(curImg)
@@ -101,19 +116,25 @@ for k in KnownList:
 
 for k in unKnownList:
     curImg1 = cv2.imread(f'{path1}/{k}')
-    unknownFacesImages.append(curImg1)
+    unknownFacesImages.append(curImg1)    
     unknownFaces.append(os.path.splitext(k)[0])
 
 def findencodings(images):
     encodeList = []
     for img in images:
+        cv2.imshow('dqe',img)
+        cv2.waitKey(1000)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if face_recognition.face_encodings(img):
+            print('encodesfound')
             encode = face_recognition.face_encodings(img)[0]
             encodeList.append(encode)
+        print('encodeList len is : '+str(len(encodeList)))
     return encodeList
 encodeListknown = findencodings(knownFacesImages)
 encodeListunknown = findencodings(unknownFacesImages)
+print('faces len is : '+str(len(unknownFacesImages)))
+print('encodes len is : '+str(len(encodeListunknown)))
 
 cap_pipe, cap_child_pip = Pipe()
 cap_read_ev = Event()
